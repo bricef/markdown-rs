@@ -37,7 +37,14 @@ pub fn to_markdown(node: &mdast::Node) -> String {
         },
         Node::FootnoteDefinition(_) => todo!(),
         Node::MdxJsxFlowElement(_) => todo!(),
-        Node::List(_) => todo!(),
+        Node::List(n) => {
+            let mut result = String::new();
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
+            }
+            result.push('\n');
+            result
+        },
         Node::MdxjsEsm(_) => todo!(),
         Node::Toml(_) => todo!(),
         Node::Yaml(_) => todo!(),
@@ -109,7 +116,14 @@ pub fn to_markdown(node: &mdast::Node) -> String {
         Node::ThematicBreak(_) => todo!(),
         Node::TableRow(_) => todo!(),
         Node::TableCell(_) => todo!(),
-        Node::ListItem(_) => todo!(),
+        Node::ListItem(n) => {
+            let mut result = String::new();
+            result.push_str("* ");
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
+            }
+            result
+        },
         Node::Definition(_) => todo!(),
         Node::Paragraph(n) => {
             let mut result = String::new();
@@ -130,7 +144,7 @@ mod tests {
 
     use super::*;
     // use crate::unist::Position;
-    use alloc::vec;
+    use alloc::{format, vec};
 
     macro_rules! cycle_tests {
         ($($name:ident: $value:expr,)*) => {
@@ -138,7 +152,7 @@ mod tests {
             #[test]
             fn $name() {
                 let (input, expected) = $value;
-                assert_eq!(expected, to_markdown(&to_mdast(input, &ParseOptions::default()).unwrap()));
+                assert_eq!(expected, to_markdown(&to_mdast(&input, &ParseOptions::default()).unwrap()));
             }
         )*
         }
@@ -189,7 +203,10 @@ mod tests {
         can_make_delete_text: ("~~Hello, world!~~", "~~Hello, world!~~\n"),
         can_have_blockquotes: ("> Hello, world!", "> Hello, world!\n"),
         blockquotes_can_include_formatting: ("> Hello, *world*!", "> Hello, *world*!\n"),
-        multiline_blockquotes_preserver_linebreaks: ("> Hello\n> world", "> Hello\n> world\n"),
+        multiline_blockquotes_preserve_linebreaks: ("> Hello\n> world", "> Hello\n> world\n"),
         multiline_blockquotes_will_presevre_trailing_newline: ("> Hello\n> world\n", "> Hello\n> world\n"),
+        can_parse_list_items: ("* Hello, world!", "* Hello, world!\n\n"),
+        can_parse_simple_list: ("* Hello\n* world", "* Hello\n* world\n\n"),
+        can_parse_nested_list: (format!("{:?}", to_mdast("* Hello\n  * world", &ParseOptions::default()).unwrap()), "* Hello\n  * world\n\n"),
     }
 }
