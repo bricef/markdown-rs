@@ -45,6 +45,7 @@ mod to_html;
 mod to_mdast;
 mod tokenizer;
 mod util;
+mod generate;
 
 pub mod mdast; // To do: externalize?
 pub mod message; // To do: externalize.
@@ -158,4 +159,25 @@ pub fn to_mdast(value: &str, options: &ParseOptions) -> Result<mdast::Node, mess
     let (events, parse_state) = parser::parse(value, options)?;
     let node = to_mdast::compile(&events, parse_state.bytes)?;
     Ok(node)
+}
+
+
+/// Turn a syntax tree into markdown
+/// 
+/// ## Examples
+/// 
+/// ```
+/// use markdown::{to_markdown, to_mdast, ParseOptions};
+/// # fn main() -> Result<(), markdown::message::Message> {
+///
+/// let tree = to_mdast("# Hey, *you*!", &ParseOptions::default())?;
+///
+/// let markdown = to_markdown(tree);
+/// println!("{:?}", markdown);
+/// // => "# Hey, *you*!"
+/// # Ok(())
+/// # }
+/// ```
+pub fn to_markdown(node: mdast::Node) -> String {
+    generate::to_markdown(node)
 }
