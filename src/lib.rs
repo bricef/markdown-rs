@@ -179,5 +179,5 @@ pub fn to_mdast(value: &str, options: &ParseOptions) -> Result<mdast::Node, mess
 /// # }
 /// ```
 pub fn to_markdown(node: mdast::Node) -> String {
-    generate::to_markdown(node)
+    generate::to_markdown(&node)
 }

@@ -4,17 +4,37 @@ use alloc::string::String;
 use crate::mdast;
 use crate::mdast::Node;
 
-
-pub fn to_markdown(node: mdast::Node) -> String {
+/// Converts an mdast node into a markdown string.
+/// 
+/// This will convert to a canonical representation, 
+/// and will not take into account how the original 
+/// element was formatted. For example, underlined 
+/// headers will be converted to their '#`-prefixed 
+/// equivalents and so on.
+pub fn to_markdown(node: &mdast::Node) -> String {
     match node {
         Node::Root(n) => {
             let mut result = String::new();
-            for child in n.children {
-                result.push_str(&to_markdown(child));
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
             }
             result
         }
-        Node::BlockQuote(_) => todo!(),
+        Node::BlockQuote(n) => {
+            let mut result = String::new();
+            result.push_str("> ");
+
+            let mut kids = String::new();
+            for child in &n.children {
+                kids.push_str(&to_markdown(child));
+            }
+            if let Some((pre,post)) = kids.rsplit_once("\n"){
+                result.push_str(&pre.replace("\n", "\n> "));
+                result.push_str(post);
+            }
+            result.push('\n');
+            return result;
+        },
         Node::FootnoteDefinition(_) => todo!(),
         Node::MdxJsxFlowElement(_) => todo!(),
         Node::List(_) => todo!(),
@@ -24,8 +44,24 @@ pub fn to_markdown(node: mdast::Node) -> String {
         Node::Break(_) => todo!(),
         Node::InlineCode(_) => todo!(),
         Node::InlineMath(_) => todo!(),
-        Node::Delete(_) => todo!(),
-        Node::Emphasis(_) => todo!(),
+        Node::Delete(n) => {
+            let mut result = String::new();
+            result.push_str("~~");
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
+            }
+            result.push_str("~~");
+            result
+        },
+        Node::Emphasis(n) => {
+            let mut result = String::new();
+            result.push('*');
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
+            }
+            result.push('*');
+            result
+        },
         Node::MdxTextExpression(_) => todo!(),
         Node::FootnoteReference(_) => todo!(),
         Node::Html(_) => todo!(),
@@ -35,8 +71,8 @@ pub fn to_markdown(node: mdast::Node) -> String {
         Node::Link(n) => {
             let mut result = String::new();
             result.push('[');
-            for child in n.children {
-                result.push_str(&to_markdown(child));
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
             }
             result.push_str("](");
             result.push_str(&n.url);
@@ -44,7 +80,15 @@ pub fn to_markdown(node: mdast::Node) -> String {
             result
         },
         Node::LinkReference(_) => todo!(),
-        Node::Strong(_) => todo!(),
+        Node::Strong(n) => {
+            let mut result = String::new();
+            result.push_str("**");
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
+            }
+            result.push_str("**");
+            result
+        },
         Node::Text(n) => n.value.clone(),
         Node::Code(_) => todo!(),
         Node::Math(_) => todo!(),
@@ -55,8 +99,8 @@ pub fn to_markdown(node: mdast::Node) -> String {
                 result.push('#');
             }
             result.push(' ');
-            for child in n.children {
-                result.push_str(&to_markdown(child));
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
             }
             result.push_str("\n\n");
             result
@@ -69,8 +113,8 @@ pub fn to_markdown(node: mdast::Node) -> String {
         Node::Definition(_) => todo!(),
         Node::Paragraph(n) => {
             let mut result = String::new();
-            for child in n.children {
-                result.push_str(&to_markdown(child));
+            for child in &n.children {
+                result.push_str(&to_markdown(&child));
             }
             result.push_str("\n");
             result
@@ -94,7 +138,7 @@ mod tests {
             #[test]
             fn $name() {
                 let (input, expected) = $value;
-                assert_eq!(expected, to_markdown(to_mdast(input, &ParseOptions::default()).unwrap()));
+                assert_eq!(expected, to_markdown(&to_mdast(input, &ParseOptions::default()).unwrap()));
             }
         )*
         }
@@ -106,7 +150,7 @@ mod tests {
             value: String::from("Hello, world!"),
             position: None,
         });
-        assert_eq!(to_markdown(node), "Hello, world!");
+        assert_eq!(to_markdown(&node), "Hello, world!");
     }
 
     #[test]
@@ -115,7 +159,7 @@ mod tests {
             children: vec![],
             position: None,
         });
-        assert_eq!(to_markdown(node), "");
+        assert_eq!(to_markdown(&node), "");
     }
 
     #[test]
@@ -129,15 +173,23 @@ mod tests {
             ],
             position: None,
         });
-        assert_eq!(to_markdown(node), "Hello, world!");
+        assert_eq!(to_markdown(&node), "Hello, world!");
     }
 
     cycle_tests! {
-        simple_paragraph: ("Hello, world!", "Hello, world!\n"),
-        simple_header: ("# Hello, world!", "# Hello, world!\n\n"),
-        fake_header: ("#hello", "#hello\n"),
-        simple_link: ("[link](http://example.com)", "[link](http://example.com)\n"),
-        header_and_paragraph: ("# Hello\nfoobar", "# Hello\n\nfoobar\n"),
-        wont_change_correct_header_spacing: ("# Hello\n\nworld", "# Hello\n\nworld\n"),
+        can_parse_simple_paragraph: ("Hello, world!", "Hello, world!\n"),
+        can_parse_simple_header: ("# Hello, world!", "# Hello, world!\n\n"),
+        will_only_accept_properly_formatted_header: ("#hello", "#hello\n"),
+        will_render_simple_link: ("[link](http://example.com)", "[link](http://example.com)\n"),
+        will_properly_space_headers_and_paragraphs: ("# Hello\nfoobar", "# Hello\n\nfoobar\n"),
+        will_not_change_correct_header_spacing: ("# Hello\n\nworld", "# Hello\n\nworld\n"),
+        will_preserve_formatting_in_paragraph: ("Hello, *world*!", "Hello, *world*!\n"),
+        will_preserve_formatting_in_link: ("[Hello, *world*!](http://example.com)", "[Hello, *world*!](http://example.com)\n"),
+        can_make_strong_text: ("**Hello, world!**", "**Hello, world!**\n"),
+        can_make_delete_text: ("~~Hello, world!~~", "~~Hello, world!~~\n"),
+        can_have_blockquotes: ("> Hello, world!", "> Hello, world!\n"),
+        blockquotes_can_include_formatting: ("> Hello, *world*!", "> Hello, *world*!\n"),
+        multiline_blockquotes_preserver_linebreaks: ("> Hello\n> world", "> Hello\n> world\n"),
+        multiline_blockquotes_will_presevre_trailing_newline: ("> Hello\n> world\n", "> Hello\n> world\n"),
     }
 }
